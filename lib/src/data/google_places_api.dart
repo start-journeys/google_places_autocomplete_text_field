@@ -126,25 +126,52 @@ class GooglePlacesApi implements PlacesApi {
     required GoogleApiConfig config,
   }) async {
     try {
-      final fieldMask =
-          config.placeDetailsFieldMask ??
-          FieldMask.defaultPlaceDetailsFieldMask;
       String url = _buildRequestUrl(
         proxyUrl: config.proxyURL,
-        appendix:
-            '/${prediction.placeId}?fields=$fieldMask&key=${config.apiKey}',
+        appendix: '/${prediction.placeId}',
       );
 
       final sessionToken = config.sessionToken;
       if (sessionToken != null) {
-        url += '&sessionToken=$sessionToken';
+        url += '?sessionToken=$sessionToken';
       }
-      final response = await _dio.get(url);
 
-      final placeDetails = PlaceDetails.fromJson(response.data);
+      final fieldMask =
+          config.placeDetailsFieldMask ??
+          'location,formattedAddress,addressComponents';
 
+      final response = await _dio.get(
+        url,
+        options: Options(
+          headers: {
+            'X-Goog-Api-Key': config.apiKey,
+            'X-Goog-FieldMask': fieldMask,
+          },
+        ),
+      );
+
+      final data = response.data;
+
+      // Places API v1 response shape
+      if (data is Map<String, dynamic> &&
+          data['location'] is Map<String, dynamic>) {
+        final loc = data['location'] as Map<String, dynamic>;
+        final lat = loc['latitude'];
+        final lng = loc['longitude'];
+        if (lat != null && lng != null) {
+          prediction.lat = lat.toString();
+          prediction.lng = lng.toString();
+        }
+        prediction.formattedAddress = data['formattedAddress'] as String?;
+        prediction.addressComponents = data['addressComponents'] as List?;
+        return prediction;
+      }
+
+      // Fallback: legacy shape (proxy or older API)
+      final placeDetails = PlaceDetails.fromJson(data);
       prediction.lat = placeDetails.result!.geometry!.location!.lat.toString();
       prediction.lng = placeDetails.result!.geometry!.location!.lng.toString();
+      prediction.formattedAddress = placeDetails.result?.formattedAddress;
 
       return prediction;
     } on DioException catch (e) {

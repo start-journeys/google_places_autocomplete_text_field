@@ -79,8 +79,8 @@ class AddressComponents {
   AddressComponents({this.longName, this.shortName, this.types});
 
   AddressComponents.fromJson(Map<String, dynamic> json) {
-    longName = json['long_name'];
-    shortName = json['short_name'];
+    longName = json['longText'];
+    shortName = json['shortText'];
     types = json['types']?.cast<String>();
   }
 }
